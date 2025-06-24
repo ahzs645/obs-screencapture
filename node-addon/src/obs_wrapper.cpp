@@ -1,6 +1,7 @@
 #include "obs_wrapper.h"
 #include <filesystem>
 #include <iostream>
+// #include <obs.h>  // Will be added when we integrate OBS
 
 #ifdef __APPLE__
 #include <CoreFoundation/CoreFoundation.h>
@@ -28,9 +29,33 @@ bool OBSManager::initialize() {
         return true;
     }
     
-    // For now, just initialize without OBS
     std::cout << "Initializing screen capture manager..." << std::endl;
+    
+    // TODO: Add OBS initialization here
+    // setupPluginPaths();
+    // if (!obs_startup("en-US", nullptr, nullptr)) {
+    //     std::cerr << "Failed to initialize OBS" << std::endl;
+    //     return false;
+    // }
+    // if (!loadRequiredPlugins()) {
+    //     std::cerr << "Failed to load required plugins" << std::endl;
+    //     obs_shutdown();
+    //     return false;
+    // }
+    
+    std::cout << "Screen capture manager initialized successfully" << std::endl;
     initialized_ = true;
+    return true;
+}
+
+void OBSManager::setupPluginPaths() {
+    // TODO: Implement OBS plugin path setup
+    std::cout << "Setting up plugin paths..." << std::endl;
+}
+
+bool OBSManager::loadRequiredPlugins() {
+    // TODO: Implement OBS plugin loading
+    std::cout << "Loading plugins..." << std::endl;
     return true;
 }
 
@@ -44,10 +69,10 @@ void OBSManager::shutdown() {
     }
     
     std::cout << "Shutting down screen capture manager..." << std::endl;
+    // TODO: Add OBS shutdown here
+    // obs_shutdown();
     initialized_ = false;
 }
-
-// Helper methods removed - will be implemented when adding actual screen capture
 
 std::vector<DisplayInfo> OBSManager::getDisplays() {
     std::vector<DisplayInfo> displays;
@@ -64,7 +89,7 @@ std::vector<DisplayInfo> OBSManager::getDisplays() {
             CGDirectDisplayID display_id = display_ids[i];
             
             DisplayInfo info;
-            info.id = std::to_string(display_id); // Use display ID directly
+            info.id = std::to_string(display_id);
             info.width = CGDisplayPixelsWide(display_id);
             info.height = CGDisplayPixelsHigh(display_id);
             
@@ -72,14 +97,12 @@ std::vector<DisplayInfo> OBSManager::getDisplays() {
             info.x = bounds.origin.x;
             info.y = bounds.origin.y;
             
-            // Try to get display name
             info.name = "Display " + std::to_string(i + 1);
             
             displays.push_back(info);
         }
     }
 #elif defined(_WIN32)
-    // Windows display enumeration
     struct EnumData { std::vector<DisplayInfo>* displays; int index; } data{&displays, 0};
     
     EnumDisplayMonitors(NULL, NULL, [](HMONITOR monitor, HDC, LPRECT rect, LPARAM lparam) -> BOOL {
@@ -186,7 +209,6 @@ std::vector<WindowInfo> OBSManager::getWindows() {
     
     CFRelease(window_list);
 #elif defined(_WIN32)
-    // Windows window enumeration
     struct WinData { std::vector<WindowInfo>* windows; } data{&windows};
     
     EnumWindows([](HWND hwnd, LPARAM lparam) -> BOOL {
@@ -228,7 +250,9 @@ bool OBSManager::startRecording(const std::string& output_path, const RecordingC
     std::cout << "Resolution: " << config.width << "x" << config.height << std::endl;
     std::cout << "FPS: " << config.fps << std::endl;
     
-    // For now, just simulate recording
+    // TODO: Add OBS recording implementation here
+    // This is where we'll integrate the real OBS recording logic
+    
     recording_ = true;
     return true;
 }
@@ -239,7 +263,46 @@ void OBSManager::stopRecording() {
     }
     
     std::cout << "Stopping recording..." << std::endl;
+    
+    // TODO: Add OBS stop recording implementation here
+    
     recording_ = false;
 }
 
-// Placeholder implementations - will be replaced with actual screen capture logic
+bool OBSManager::setupVideoOutput(const RecordingConfig& config) {
+    // TODO: Implement OBS video output setup
+    std::cout << "Setting up video output..." << std::endl;
+    return true;
+}
+
+bool OBSManager::setupAudioOutput(const RecordingConfig& config) {
+    // TODO: Implement OBS audio output setup
+    std::cout << "Setting up audio output..." << std::endl;
+    return true;
+}
+
+bool OBSManager::createVideoSource(const RecordingConfig& config) {
+    // TODO: Implement OBS video source creation
+    std::cout << "Creating video source..." << std::endl;
+    return true;
+}
+
+bool OBSManager::createAudioSource(const RecordingConfig& config) {
+    // TODO: Implement OBS audio source creation
+    std::cout << "Creating audio source..." << std::endl;
+    return true;
+}
+
+void OBSManager::cleanupRecording() {
+    // TODO: Implement OBS recording cleanup
+    std::cout << "Cleaning up recording..." << std::endl;
+}
+
+bool OBSManager::setSystemAudioEnabled(bool enabled) {
+    // This would control system audio capture
+    return true;
+}
+
+bool OBSManager::isCaptureAudioSupported() {
+    return true;
+}

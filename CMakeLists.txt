@@ -4,10 +4,6 @@ project(obs-screen-capture-node)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Options
-option(BUILD_FOR_NODE "Build as Node.js addon" ON)
-option(USE_SYSTEM_OBS "Use system OBS installation" OFF)
-
-if(BUILD_FOR_NODE)
-    add_subdirectory(node-addon)
-endif()
+# For now, let's build without full OBS integration
+# This gives us the foundation to add OBS incrementally
+add_subdirectory(node-addon)
