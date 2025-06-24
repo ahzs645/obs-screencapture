@@ -1,7 +1,11 @@
 #include "obs_wrapper.h"
 #include <filesystem>
 #include <iostream>
-// #include <obs.h>  // Will be added when we integrate OBS
+
+#ifdef HAVE_OBS
+#include <obs/obs.h>
+#include <obs/obs-module.h>
+#endif
 
 #ifdef __APPLE__
 #include <CoreFoundation/CoreFoundation.h>
@@ -29,34 +33,89 @@ bool OBSManager::initialize() {
         return true;
     }
     
-    std::cout << "Initializing screen capture manager..." << std::endl;
+    std::cout << "Initializing OBS core..." << std::endl;
     
-    // TODO: Add OBS initialization here
-    // setupPluginPaths();
-    // if (!obs_startup("en-US", nullptr, nullptr)) {
-    //     std::cerr << "Failed to initialize OBS" << std::endl;
-    //     return false;
-    // }
-    // if (!loadRequiredPlugins()) {
-    //     std::cerr << "Failed to load required plugins" << std::endl;
-    //     obs_shutdown();
-    //     return false;
-    // }
+#ifdef HAVE_OBS
+    // Initialize OBS core
+    if (!obs_startup("en-US", nullptr, nullptr)) {
+        std::cerr << "Failed to initialize OBS core" << std::endl;
+        return false;
+    }
     
-    std::cout << "Screen capture manager initialized successfully" << std::endl;
+    // Setup plugin paths
+    setupPluginPaths();
+    
+    // Load required plugins
+    if (!loadRequiredPlugins()) {
+        std::cerr << "Failed to load required plugins" << std::endl;
+        obs_shutdown();
+        return false;
+    }
+    
+    // Reset audio and video
+    obs_reset_audio();
+    obs_reset_video();
+    
+    std::cout << "OBS core initialized successfully" << std::endl;
+#else
+    std::cout << "Building without OBS - foundation only" << std::endl;
+#endif
+    
     initialized_ = true;
     return true;
 }
 
 void OBSManager::setupPluginPaths() {
-    // TODO: Implement OBS plugin path setup
-    std::cout << "Setting up plugin paths..." << std::endl;
+#ifdef HAVE_OBS
+    std::cout << "Setting up OBS plugin paths..." << std::endl;
+    
+#ifdef OBS_PLUGINS_PATH
+    // Add the plugins directory
+    obs_add_module_path(OBS_PLUGINS_PATH, nullptr);
+#endif
+
+#ifdef __APPLE__
+    // macOS plugin paths
+    obs_add_module_path("/usr/local/lib/obs-plugins", "/usr/local/share/obs/obs-plugins");
+    obs_add_module_path("/opt/homebrew/lib/obs-plugins", "/opt/homebrew/share/obs/obs-plugins");
+#elif defined(_WIN32)
+    // Windows plugin paths
+    obs_add_module_path("C:/Program Files/obs-studio/obs-plugins/64bit", "C:/Program Files/obs-studio/data/obs-plugins");
+#else
+    // Linux plugin paths
+    obs_add_module_path("/usr/lib/obs-plugins", "/usr/share/obs/obs-plugins");
+    obs_add_module_path("/usr/local/lib/obs-plugins", "/usr/local/share/obs/obs-plugins");
+#endif
+
+#endif
 }
 
 bool OBSManager::loadRequiredPlugins() {
-    // TODO: Implement OBS plugin loading
-    std::cout << "Loading plugins..." << std::endl;
+#ifdef HAVE_OBS
+    std::cout << "Loading required OBS plugins..." << std::endl;
+    
+    // Load platform-specific plugins
+#ifdef __APPLE__
+    obs_load_module("mac-capture"); // ScreenCaptureKit
+    obs_load_module("mac-avcapture"); // Audio
+#elif defined(_WIN32)
+    obs_load_module("win-capture"); // Graphics Capture API
+    obs_load_module("win-wasapi"); // WASAPI audio
+#else
+    obs_load_module("linux-capture"); // X11 capture
+    obs_load_module("linux-pulseaudio"); // PulseAudio
+#endif
+    
+    // Load encoding plugins
+    obs_load_module("obs-x264"); // Software encoding
+    obs_load_module("obs-ffmpeg"); // Container/muxing
+    
+    obs_post_load_modules();
+    std::cout << "Plugins loaded successfully" << std::endl;
     return true;
+#else
+    return true;
+#endif
 }
 
 void OBSManager::shutdown() {
@@ -68,9 +127,13 @@ void OBSManager::shutdown() {
         stopRecording();
     }
     
-    std::cout << "Shutting down screen capture manager..." << std::endl;
-    // TODO: Add OBS shutdown here
-    // obs_shutdown();
+    std::cout << "Shutting down OBS..." << std::endl;
+    
+#ifdef HAVE_OBS
+    cleanupRecording();
+    obs_shutdown();
+#endif
+    
     initialized_ = false;
 }
 
@@ -246,15 +309,62 @@ bool OBSManager::startRecording(const std::string& output_path, const RecordingC
         return false;
     }
     
-    std::cout << "Starting recording to: " << output_path << std::endl;
-    std::cout << "Resolution: " << config.width << "x" << config.height << std::endl;
-    std::cout << "FPS: " << config.fps << std::endl;
+    std::cout << "Starting OBS recording to: " << output_path << std::endl;
     
-    // TODO: Add OBS recording implementation here
-    // This is where we'll integrate the real OBS recording logic
+#ifdef HAVE_OBS
+    // Setup video
+    if (!setupVideoOutput(config)) {
+        std::cerr << "Failed to setup video output" << std::endl;
+        return false;
+    }
     
+    // Setup audio if requested
+    if (config.capture_audio) {
+        if (!setupAudioOutput(config)) {
+            std::cerr << "Failed to setup audio output" << std::endl;
+            return false;
+        }
+    }
+    
+    // Create sources
+    if (!createVideoSource(config)) {
+        std::cerr << "Failed to create video source" << std::endl;
+        return false;
+    }
+    
+    if (config.capture_audio && !createAudioSource(config)) {
+        std::cerr << "Failed to create audio source" << std::endl;
+        return false;
+    }
+    
+    // Start recording
+    obs_output_t* output = obs_output_create("ffmpeg_muxer", "recording_output", nullptr, nullptr);
+    if (!output) {
+        std::cerr << "Failed to create output" << std::endl;
+        return false;
+    }
+    
+    obs_data_t* settings = obs_data_create();
+    obs_data_set_string(settings, "path", output_path.c_str());
+    obs_output_update(output, settings);
+    obs_data_release(settings);
+    
+    if (!obs_output_start(output)) {
+        std::cerr << "Failed to start recording output" << std::endl;
+        obs_output_release(output);
+        return false;
+    }
+    
+    obs_output_ = output;
+    recording_ = true;
+    
+    std::cout << "Recording started successfully" << std::endl;
+    return true;
+#else
+    std::cout << "Mock recording started (no OBS integration)" << std::endl;
     recording_ = true;
     return true;
+#endif
 }
 
 void OBSManager::stopRecording() {
@@ -264,38 +374,152 @@ void OBSManager::stopRecording() {
     
     std::cout << "Stopping recording..." << std::endl;
     
-    // TODO: Add OBS stop recording implementation here
+#ifdef HAVE_OBS
+    if (obs_output_) {
+        obs_output_stop(static_cast<obs_output_t*>(obs_output_));
+        obs_output_release(static_cast<obs_output_t*>(obs_output_));
+        obs_output_ = nullptr;
+    }
+#endif
     
     recording_ = false;
+    std::cout << "Recording stopped" << std::endl;
 }
 
 bool OBSManager::setupVideoOutput(const RecordingConfig& config) {
-    // TODO: Implement OBS video output setup
-    std::cout << "Setting up video output..." << std::endl;
+#ifdef HAVE_OBS
+    // Setup video info
+    struct obs_video_info ovi = {};
+    ovi.graphics_module = "libobs-opengl"; // or "libobs-d3d11" on Windows
+    ovi.fps_num = config.fps;
+    ovi.fps_den = 1;
+    ovi.base_width = config.width;
+    ovi.base_height = config.height;
+    ovi.output_width = config.width;
+    ovi.output_height = config.height;
+    ovi.output_format = VIDEO_FORMAT_NV12;
+    ovi.adapter = 0;
+    ovi.gpu_conversion = true;
+    ovi.colorspace = VIDEO_CS_709;
+    ovi.range = VIDEO_RANGE_PARTIAL;
+    ovi.scale_type = OBS_SCALE_BICUBIC;
+    
+    if (obs_reset_video(&ovi) != OBS_VIDEO_SUCCESS) {
+        std::cerr << "Failed to reset video" << std::endl;
+        return false;
+    }
+    
     return true;
+#else
+    return true;
+#endif
 }
 
 bool OBSManager::setupAudioOutput(const RecordingConfig& config) {
-    // TODO: Implement OBS audio output setup
-    std::cout << "Setting up audio output..." << std::endl;
+#ifdef HAVE_OBS
+    struct obs_audio_info ai = {};
+    ai.samples_per_sec = 44100;
+    ai.speakers = SPEAKERS_STEREO;
+    
+    if (!obs_reset_audio(&ai)) {
+        std::cerr << "Failed to reset audio" << std::endl;
+        return false;
+    }
+    
     return true;
+#else
+    return true;
+#endif
 }
 
 bool OBSManager::createVideoSource(const RecordingConfig& config) {
-    // TODO: Implement OBS video source creation
-    std::cout << "Creating video source..." << std::endl;
+#ifdef HAVE_OBS
+    std::string source_id;
+    obs_data_t* settings = obs_data_create();
+    
+#ifdef __APPLE__
+    // Use ScreenCaptureKit on macOS
+    if (config.source_type == RecordingConfig::WINDOW) {
+        source_id = "screen_capture";
+        obs_data_set_int(settings, "type", 1); // Window
+        obs_data_set_int(settings, "window", config.window_id);
+    } else {
+        source_id = "screen_capture";
+        obs_data_set_int(settings, "type", 0); // Display
+        obs_data_set_string(settings, "display_uuid", config.display_id.c_str());
+    }
+    obs_data_set_bool(settings, "show_cursor", config.capture_cursor);
+#elif defined(_WIN32)
+    // Use Graphics Capture API on Windows
+    if (config.source_type == RecordingConfig::WINDOW) {
+        source_id = "window_capture";
+    } else {
+        source_id = "monitor_capture";
+        obs_data_set_int(settings, "monitor", std::stoi(config.display_id));
+    }
+    obs_data_set_bool(settings, "cursor", config.capture_cursor);
+#else
+    // Use X11 on Linux
+    source_id = "xcomposite_input";
+    obs_data_set_int(settings, "screen", std::stoi(config.display_id));
+    obs_data_set_bool(settings, "show_cursor", config.capture_cursor);
+#endif
+    
+    obs_source_t* source = obs_source_create(source_id.c_str(), "video_source", settings, nullptr);
+    obs_data_release(settings);
+    
+    if (!source) {
+        std::cerr << "Failed to create video source: " << source_id << std::endl;
+        return false;
+    }
+    
+    video_source_ = source;
     return true;
+#else
+    return true;
+#endif
 }
 
 bool OBSManager::createAudioSource(const RecordingConfig& config) {
-    // TODO: Implement OBS audio source creation
-    std::cout << "Creating audio source..." << std::endl;
+#ifdef HAVE_OBS
+    std::string source_id;
+    
+#ifdef __APPLE__
+    source_id = "coreaudio_output_capture"; // System audio
+#elif defined(_WIN32)
+    source_id = "wasapi_output_capture"; // WASAPI
+#else
+    source_id = "pulse_output_capture"; // PulseAudio
+#endif
+    
+    obs_data_t* settings = obs_data_create();
+    obs_source_t* source = obs_source_create(source_id.c_str(), "audio_source", settings, nullptr);
+    obs_data_release(settings);
+    
+    if (!source) {
+        std::cerr << "Failed to create audio source: " << source_id << std::endl;
+        return false;
+    }
+    
+    audio_source_ = source;
     return true;
+#else
+    return true;
+#endif
 }
 
 void OBSManager::cleanupRecording() {
-    // TODO: Implement OBS recording cleanup
-    std::cout << "Cleaning up recording..." << std::endl;
+#ifdef HAVE_OBS
+    if (video_source_) {
+        obs_source_release(static_cast<obs_source_t*>(video_source_));
+        video_source_ = nullptr;
+    }
+    
+    if (audio_source_) {
+        obs_source_release(static_cast<obs_source_t*>(audio_source_));
+        audio_source_ = nullptr;
+    }
+#endif
 }
 
 bool OBSManager::setSystemAudioEnabled(bool enabled) {

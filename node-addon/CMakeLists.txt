@@ -12,12 +12,6 @@ execute_process(
     OUTPUT_STRIP_TRAILING_WHITESPACE
 )
 
-execute_process(
-    COMMAND node -p "process.execPath.replace('/bin/node', '/include/node')"
-    OUTPUT_VARIABLE NODE_INCLUDE_DIR
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-)
-
 # Create the Node addon
 add_library(obs_screen_capture SHARED
     src/obs_screen_capture.cpp
@@ -41,6 +35,27 @@ target_include_directories(obs_screen_capture PRIVATE
     src/
 )
 
+# Add OBS if available
+if(USE_SYSTEM_OBS AND OBS_INCLUDE_DIR AND OBS_LIBRARY)
+    target_include_directories(obs_screen_capture PRIVATE ${OBS_INCLUDE_DIR})
+    target_link_libraries(obs_screen_capture PRIVATE ${OBS_LIBRARY})
+    
+    # Find OBS plugins directory
+    get_filename_component(OBS_LIB_DIR ${OBS_LIBRARY} DIRECTORY)
+    find_path(OBS_PLUGINS_DIR obs-plugins
+        PATHS 
+            ${OBS_LIB_DIR}/../lib
+            /usr/local/lib
+            /opt/homebrew/lib
+    )
+    
+    if(OBS_PLUGINS_DIR)
+        target_compile_definitions(obs_screen_capture PRIVATE 
+            OBS_PLUGINS_PATH="${OBS_PLUGINS_DIR}/obs-plugins"
+        )
+    endif()
+endif()
+
 # Configure as Node addon
 set_target_properties(obs_screen_capture PROPERTIES
     PREFIX ""
@@ -49,13 +64,12 @@ set_target_properties(obs_screen_capture PROPERTIES
     POSITION_INDEPENDENT_CODE ON
 )
 
-# Node.js addon linking - symbols are provided by Node.js runtime
+# Node.js addon linking
 if(APPLE)
     set_target_properties(obs_screen_capture PROPERTIES
         LINK_FLAGS "-undefined dynamic_lookup"
     )
 elseif(WIN32)
-    # Windows needs to link against node.lib
     execute_process(
         COMMAND node -p "process.execPath.replace('node.exe', 'node.lib')"
         OUTPUT_VARIABLE NODE_LIB_FILE
@@ -64,7 +78,6 @@ elseif(WIN32)
     target_link_libraries(obs_screen_capture PRIVATE ${NODE_LIB_FILE})
 endif()
 
-# Add node-addon-api include (needed for napi.h)
 target_compile_definitions(obs_screen_capture PRIVATE NAPI_DISABLE_CPP_EXCEPTIONS)
 
 # OBS integration will be added incrementally
