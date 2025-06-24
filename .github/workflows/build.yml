@@ -1,0 +1,43 @@
+name: Build and Test
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-22.04, windows-2022, macos-12]
+        node: [18, 20]
+    
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node }}
+        
+    - name: Install dependencies (Ubuntu)
+      if: matrix.os == 'ubuntu-22.04'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake ninja-build pkg-config
+        sudo apt-get install -y libx11-dev libxrandr-dev libpulse-dev
+        
+    - name: Install dependencies (macOS)
+      if: matrix.os == 'macos-12'
+      run: brew install cmake ninja
+      
+    - name: Install Node dependencies
+      run: npm install
+      
+    - name: Configure
+      run: npm run configure
+      
+    - name: Build
+      run: npm run build
+      
+    - name: Test
+      run: npm test

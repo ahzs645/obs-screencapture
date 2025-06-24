@@ -1,0 +1,37 @@
+{
+    "name": "obs-screen-capture",
+    "version": "1.0.0",
+    "description": "Cross-platform screen recording powered by OBS Studio",
+    "main": "index.js",
+      "scripts": {
+    "configure": "cmake -B build -DBUILD_FOR_NODE=ON",
+    "build": "cmake --build build --parallel",
+    "rebuild": "npm run configure && npm run build",
+    "test": "node test/test.js",
+    "test:macos": "node test/test-macos.js",
+    "test:windows": "node test/test-windows.js",
+    "postinstall": "node scripts/install.js",
+    "prepack": "npm run build"
+  },
+    "files": [
+      "build/node-addon/obs_screen_capture.node",
+      "build/node-addon/lib/**/*",
+      "build/node-addon/obs-plugins/**/*",
+      "index.js"
+    ],
+    "dependencies": {
+      "node-addon-api": "^7.0.0"
+    },
+    "devDependencies": {
+      "cmake-js": "^7.2.1"
+    },
+    "engines": {
+      "node": ">=16.0.0"
+    },
+    "os": ["darwin", "linux", "win32"],
+    "keywords": ["screen", "recording", "capture", "obs", "video", "audio"],
+    "repository": {
+      "type": "git",
+      "url": "git+https://github.com/yourusername/obs-screen-capture.git"
+    }
+  }
