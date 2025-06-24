@@ -37,7 +37,10 @@ target_include_directories(obs_screen_capture PRIVATE
 
 # Add OBS if available
 if(USE_SYSTEM_OBS AND OBS_INCLUDE_DIR AND OBS_LIBRARY)
-    target_include_directories(obs_screen_capture PRIVATE ${OBS_INCLUDE_DIR})
+    target_include_directories(obs_screen_capture PRIVATE 
+        ${OBS_INCLUDE_DIR}
+        ${OBS_INCLUDE_DIR}/obs
+    )
     target_link_libraries(obs_screen_capture PRIVATE ${OBS_LIBRARY})
     
     # Find OBS plugins directory

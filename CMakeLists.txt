@@ -8,7 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 option(USE_SYSTEM_OBS "Use system OBS installation" ON)
 
 if(USE_SYSTEM_OBS)
-    # Find OBS installation
+    # Find OBS installation - try framework first, then regular library
     find_path(OBS_INCLUDE_DIR obs/obs.h
         PATHS 
             /usr/local/include
@@ -16,13 +16,27 @@ if(USE_SYSTEM_OBS)
             "C:/Program Files/obs-studio/include"
     )
     
-    find_library(OBS_LIBRARY 
-        NAMES obs libobs
-        PATHS 
-            /usr/local/lib
-            /opt/homebrew/lib
-            "C:/Program Files/obs-studio/bin/64bit"
-    )
+    # Try to find OBS framework first (macOS)
+    if(APPLE)
+        find_library(OBS_LIBRARY 
+            NAMES obs libobs
+            PATHS 
+                /usr/local/lib/libobs.framework
+                /opt/homebrew/lib/libobs.framework
+            NO_DEFAULT_PATH
+        )
+    endif()
+    
+    # If framework not found, try regular library
+    if(NOT OBS_LIBRARY)
+        find_library(OBS_LIBRARY 
+            NAMES obs libobs
+            PATHS 
+                /usr/local/lib
+                /opt/homebrew/lib
+                "C:/Program Files/obs-studio/bin/64bit"
+        )
+    endif()
     
     if(OBS_INCLUDE_DIR AND OBS_LIBRARY)
         message(STATUS "Found OBS: ${OBS_LIBRARY}")

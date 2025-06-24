@@ -53,8 +53,21 @@ bool OBSManager::initialize() {
     }
     
     // Reset audio and video
-    obs_reset_audio();
-    obs_reset_video();
+    struct obs_audio_info ai = {};
+    ai.samples_per_sec = 48000;
+    ai.speakers = SPEAKERS_STEREO;
+    obs_reset_audio(&ai);
+    
+    struct obs_video_info ovi = {};
+    ovi.base_width = 1920;
+    ovi.base_height = 1080;
+    ovi.output_width = 1920;
+    ovi.output_height = 1080;
+    ovi.output_format = VIDEO_FORMAT_NV12;
+    ovi.fps_num = 30;
+    ovi.fps_den = 1;
+    ovi.graphics_module = "libobs-opengl";
+    obs_reset_video(&ovi);
     
     std::cout << "OBS core initialized successfully" << std::endl;
 #else
@@ -94,21 +107,8 @@ bool OBSManager::loadRequiredPlugins() {
 #ifdef HAVE_OBS
     std::cout << "Loading required OBS plugins..." << std::endl;
     
-    // Load platform-specific plugins
-#ifdef __APPLE__
-    obs_load_module("mac-capture"); // ScreenCaptureKit
-    obs_load_module("mac-avcapture"); // Audio
-#elif defined(_WIN32)
-    obs_load_module("win-capture"); // Graphics Capture API
-    obs_load_module("win-wasapi"); // WASAPI audio
-#else
-    obs_load_module("linux-capture"); // X11 capture
-    obs_load_module("linux-pulseaudio"); // PulseAudio
-#endif
-    
-    // Load encoding plugins
-    obs_load_module("obs-x264"); // Software encoding
-    obs_load_module("obs-ffmpeg"); // Container/muxing
+    // Load all available modules
+    obs_load_all_modules();
     
     obs_post_load_modules();
     std::cout << "Plugins loaded successfully" << std::endl;
